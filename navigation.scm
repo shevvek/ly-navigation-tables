@@ -55,8 +55,8 @@ list-form (e.g. @code{(2 25 20)})."
            (apply test vals))))
 
 (define-public (write-file-to-subdir data dir name ext)
-  "Write @var{data} to @var{dir}/@var{name}.@var{ext} relative to the current
-input file."
+  "Write @var{data} to @file{@var{dir}/@var{name}.@var{ext}} relative to the
+current input file."
   (let* ((parent-dir (dirname (or input-file-name name)))
          (subdir (string-append parent-dir "/" dir))
          (tmp (begin (mkdir-if-not-exist subdir)
