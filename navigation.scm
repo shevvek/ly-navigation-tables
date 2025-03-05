@@ -1,8 +1,6 @@
-;;; navigation.scm --- Moment-location mapping for LilyPond
+;;; navigation.scm --- "vertical" score navigation backend for GNU LilyPond
 
 ;; Copyright (c) 2025 Saul James Tobin
-
-;; This file is part of lilyond-ts-mode.
 
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -15,7 +13,7 @@
 ;; GNU General Public License for more details.
 
 ;; You should have received a copy of the GNU General Public License
-;; along with lilypond-ts-mode.  If not, see <https://www.gnu.org/licenses/>.
+;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 (use-modules (srfi srfi-26))
 
