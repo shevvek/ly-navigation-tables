@@ -292,74 +292,7 @@ discrete sequential music expressions. Add the organized data to the book-level
 parameters @code{collated-nav-tables} and @code{score-nav-tables} respectively.
 If this @code{Score} is the last one in its top-level book, write the collected
 data from both paramaters to a file named @file{.nav/@code{bookname}.l}, located
-relative to the file being compiled.
-
-Each nav file contains a single generic Scheme/LISP-compatible alist sexp. The
-format is as follows:
-
-@example
-((by-score
-  . ((score_id_0 . score_list_0)
-     (score_id_1 . score_list_1)
-     ...
-     (score_id_n . score_list_n)))
- (by-input-file
-  . ((filename_0 . file_alist_0)
-     (filename_1 . file_alist_1)
-     ...
-     (filename_n . file_alist_n))))
-
-score_list_i: (segment_0 segment_1 ... segment_n)
-seg_j:   (event_n event_n-1 ... event_0)
-event_k: ((beg-moment . end-moment) (filename line char col) export-props)
-
-file_alist_i: ((location_0 . data_0)
-               (location_1 . data_1)
-               ...
-               (location_n . data_n))
-location_j: (line char col)
-data_j: (score-id segment-index beg-moment end-moment . export-props)
-@end example
-
-Each alist in @code{by-input-file} is sorted by ascending input location. The
-intent is that an editor such as Frescobaldi or Emacs will use this data to
-iterate over LilyPond code attaching rhythmic metadata.
-
-The list associated with each @code{score-id} in @code{by-score} is sorted in
-the order each sequential music segment appears in the code, but the list of
-events within each segment is sorted in reverse order. The intent is that an
-editor will keep the @code{by-score} alist in memory as a lookup table.
-
-This setup facilitates the implementation of @qq{vertical} navigation through
-the code for a score, cycling between the input locations corresponding to a
-given rhythmic position across all polyphonic parts, via the following lookup
-chain:
-@enumerate
-
-@item @code{score-id = this-score-id}
-
-@item
-@code{segment-id = destination-segment-id}, for cycling forward or backward,
-@code{this-segment-id +/- 1}. Note that for music with temporary polyphony,
-not all segments will encompass the same moment span. So destination segments
-should be filtered to ensure the current moment is in-bounds.
-
-@item
-@code{beg-moment <= this-beg-moment < end-moment}. For efficiency, this can be
-done simply via @code{assoc} with @code{<=} as the @qq{equality} test, since the
-segments are sorted in reverse.
-
-@end enumerate
-
-An editor can inject via @command{-dinclude-settings} a default layout that adds
-@code{Record_locations_translator} to @code{Score}. This will enable navigation
-data with no changes to user code. The editor can then watch for the creation or
-refresh of @file{.nav/*.l}, as well as loading pre-existing nav data on
-file-open.
-
-Since @code{Record_locations_translator} supports the export of arbitrary
-context properties, in principle this could also be used to enable other
-rhythm-aware editor features, such as indentation of mid-measure line breaks.")))
+relative to the file being compiled.")))
 
 (define-public (count-book-scores book)
   "Recursively count the number of scores in @var{book}."
