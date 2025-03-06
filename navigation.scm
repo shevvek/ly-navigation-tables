@@ -87,8 +87,21 @@ ordering of @var{lst}."
               (cons (list x) acc)))
         '() lst))
 
-(define*-public (merge-sorted-tables alist1 alist2
-                                     #:optional (comparator <))
+(define*-public (apply-export-type-conversions arg #:optional (paper #f))
+  "Recursively apply type conversions to @var{arg} as defined in @var{paper} or
+@code{$defaultpaper} variable @code{export-type-conversions}."
+  (cond
+   ((list? arg)
+    (map apply-export-type-conversions arg))
+   ((and=> (assoc arg (ly:output-def-lookup
+                       (or paper (ly:parser-lookup '$defaultpaper))
+                       'export-type-conversions)
+                  (lambda (a b) (b a)))
+           cdr)
+    => (compose apply-export-type-conversions (cut <> arg)))
+   (else arg)))
+
+(define*-public (merge-sorted-tables alist1 alist2 #:optional (comparator <))
   "Combine two alists @var{alist1} and @var{alist2}, where the values are lists
 sorted under @var{comparator}. Merge the value lists for any keys common to both
 alists. Order of keys is not preserved."
@@ -122,22 +135,13 @@ are pre-sorted by filename during translation."
              ;; sort backwards so that uniq-list doesn't need to call reverse!
              #:key cdar #:reverse? #t))
 
-(define-public (moment->nav-key m)
-  ;; Most other languages, including Emacs Lisp, do not support exact rationals.
-  ;; Discard grace timing so editors don't have to worry about moment math.
-  (exact->inexact (ly:moment-main m)))
-
 (define (distribute-index-and-format! i seg)
   (map (lambda (elt)
          ;; The reason for set-cdr! is to smuggle indices and formatted moments
          ;; from the segmented list to the collated list via shared cons tails
          ;; of the elements. Otherwise this would require iterating over the
-         ;; whole list to reverse lookup every element. This match-lambda would
-         ;; also be the place to add patterns to format custom export properties
-         (set-cdr! elt (cons* i (map (match-lambda ((? ly:moment? m)
-                                                    (moment->nav-key m))
-                                                   (x x))
-                                     (cdr elt))))
+         ;; whole list to reverse lookup every element.
+         (set-cdr! elt (cons* i (apply-export-type-conversions (cdr elt))))
          (match elt ((loc j mom end . data)
                      `((,mom . ,end) ,loc ,data))))
        seg))
