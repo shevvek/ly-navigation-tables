@@ -1,6 +1,11 @@
 # LilyPond Navigation Tables
 
-This library implements backend code for GNU LilyPond to export a mapping between rhythmic events and input file locations. It is intended for use by editing software, such as Frescobaldi and Emacs, to enable features such as "vertical" navigation through the code for a musical score, cycling between the same rhythmic position in different parts.
+This library implements backend code for GNU LilyPond to export a mapping between rhythmic events and input file locations. It is intended for use by editing software, such as Frescobaldi and Emacs, to enable features such as "vertical" navigation through the code for a musical score, cycling between the same rhythmic position in different parts. This addresses a longstanding  workflow limitation of LilyPond: the difficulty of quickly editing a specific musical passage across all parts in a large score, especially if it involves inserting or removing measures.
+
+This is a short video demo of vertical navigation through a large LilyPond project using [lilypond-ts-mode for Emacs](https://github.com/shevvek/lilypond-ts-mode):
+
+[![Demo of vertical navigation in Emacs lilypond-ts-mode](https://img.youtube.com/vi/IFtCpMpOM1o/0.jpg)](https://www.youtube.com/watch?v=IFtCpMpOM1o)
+
 
 ## Implementation Guide
 
@@ -24,7 +29,7 @@ If the same musical input is included at different times within the same score, 
 
 If the same musical input is included in multiple different scores, the most recently compiled score will overwrite navigation metadata. For example, compiling just the flute part would generate navigation data that only includes the flute music, overwriting navigation data from the full score. This is the reason for the above recommendation that editors provide both a "score compile" command that generates navigation data and a "parts compile" command that does not.
 
-(Technically, it could be possible for an editor to implement a smarter method of handling navigation metadata for the same input location from multiple scores. The Emacs reference implementation does not currently do this. It seems challenging and probably not worth it.)
+(Technically, it could be possible for an editor to implement a smarter method of handling navigation metadata from multiple scores for the same input location. The Emacs reference implementation does not currently do this. It seems challenging and probably not worth it.)
 
 `navigation.scm` uses a custom `default-toplevel-book-handler` to perform export of navigation data. Users with code that also defines `default-toplevel-book-handler` will need to do some Scheme work to enable compatibility.
 
@@ -82,7 +87,7 @@ The format is as follows:
 
 Each alist in `by-input-file` is sorted by ascending input location.
 
-The list associated with each `score-id` in `by-score` is sorted by the order each sequential music segment appears in the code, but the lists of events within each segment are sorted in reverse order. `score-ids` are sufficiently unique for editors to use a single global lookup table even across multiple projects that reuse the same book output name.
+The list associated with each `score-id` in `by-score` is sorted by the order each sequential music segment appears in the code, with segments in different input files sorted in score order. Lists of events within each segment are sorted in reverse order. `score-ids` are sufficiently unique for editors to use a single global lookup table even across multiple projects that reuse the same book output name.
 
 For simplicity and read-compatibility across languages, moments are stored as floating point numbers representing non-grace timing. Navigation data for grace notes will appear in the correct order but will have the same moment metadata as the adjacent non-grace note.
 
@@ -99,6 +104,6 @@ As you'll see from `navigation.ily`, all the magic happens thanks to a **Score**
 
 Users can control navigation metadata generation per-score by adding `\remove Record_locations_translator` or `\consists Record_locations_translator` to their `\midi{}` or `\layout{}` block. `Record_locations_translator` should always belong `Score`. This can be used, for example, to enable navigation metadata generation for a midi-only project, or to disable it for scores other than a project's full score. Note, however, that this will cause compilation warnings if users invoke `lilypond` without including `navigation.ily`. Editors that **do not** provide a "compile parts" command **should** clearly communicate this API to users. Editors that **do** provide a "compile parts" command (as recommended above) may want to provide a wrapper interface to this feature.
 
-You may have noticed from the file format specification above that navigation metadata includes `export-props`. This extra metadata for each event includes the values of each context property named in `Score.navigationExportProperties`. By default, `navigation.ily` includes `measurePosition` and `currentBarNumber`, which could be used for example to implement identation of mid-measure line breaks. The intent is that different editing programs may customize `navigationExportProperties` in order to support the development of new editor features. Note that depending on the types of these context properties, they may be exported in a format that requires some parsing when read by languages other than Guile.
+You may have noticed from the file format specification above that navigation metadata includes `export-props`. This extra metadata for each event includes the values of each context property named in `Score.navigationExportProperties`. By default, `navigation.ily` includes `measurePosition` and `currentBarNumber`, which could be used for example to implement indentation of mid-measure line breaks. The intent is that different editing programs may customize `navigationExportProperties` in order to support the development of new editor features. Note that depending on the types of these context properties, they may be exported in a format that requires some parsing when read by languages other than Guile.
 
 Even though `Record_locations_translator` always lives within `Score`, the actual recording of events happens within `Timing`, so tempo and meter information will always be available to record.
