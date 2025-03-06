@@ -182,11 +182,10 @@ file, then clear @code{score-nav-tables}."
          (score-index (length (score-nav-tables)))
          ;; score-ids are sufficiently unique for editors to use a single global
          ;; lookup table across all projects
-         (score-id (string->symbol (format #f "~a-~d-~d"
-                                           current-outfile-name
-                                           ;; disambiguate books with same name
-                                           (hash input-file-name 999)
-                                           score-index)))
+         (score-id (string->symbol
+                    (format #f "~a-~d-~d" current-outfile-name score-index
+                            ;; disambiguate books with same name
+                            (hash input-file-name (expt 1024 3)))))
          ;; Format the elements of the filename collated version of the data
          ;; Restore the filename alist key that was stripped earlier
          (by-file-with-indices (map (lambda (ftable)
