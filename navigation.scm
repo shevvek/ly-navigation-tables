@@ -19,16 +19,15 @@
 
 ;; Modified from lily-library.scm
 (module-set! (resolve-module '(lily)) 'uniq-list
-             (lambda* (lst #:key (key identity) (test equal?) (reverse? #f))
+             (lambda* (lst #:optional (= equal?) #:key (reverse? #f))
                "Remove adjacent duplicates from @var{lst}. For sorted lists,
-faster than @code{delete-duplicates}. Comparisons are performed as
-@code{(test (key a) (key b))}, similar to the function of @var{key} and @{test}
-keyword arguments in Common LISP. With @var{reverse?} non-@code{#f}, return the
-result in reverse order (slightly more efficient)."
+faster than @code{delete-duplicates}. Comparisons are performed using
+@code{equal?} or optionally @var{=}. With @var{reverse?} non-@code{#f}, return
+the result in reverse order (slightly more efficient)."
                (let ((result (fold (lambda (x acc)
                                      (if (null? acc)
                                          (list x)
-                                         (if (test (key x) (key (car acc)))
+                                         (if (= x (car acc))
                                              acc
                                              (cons x acc))))
                                    '() lst)))
@@ -71,17 +70,16 @@ current input file."
 recurse over the children of @var{ctx}. Returns the tree of contexts where
 @var{proc} was successfully applied."
   (or (proc ctx)
-      (map (cut selective-map-contexts proc <>)
+      (map (cute selective-map-contexts proc <>)
            (ly:context-children ctx))))
 
-(define*-public (split-sequential-segments lst #:key (key identity) (test <))
-  "Split @var{lst} into segments such that @code{(@var{key} elt)} varies
-monotonically under @var{test} within each segment. This reverses the initial
-ordering of @var{lst}."
+(define*-public (split-sequential-segments lst #:optional (comparator <))
+  "Split @var{lst} into monotonic segments under @var{comparator}, reversing the
+initial ordering of @var{lst}."
   (fold (lambda (x acc)
           (if (and (pair? acc)
-                   (test (key (caar acc))
-                         (key x)))
+                   (comparator (caar acc)
+                               x))
               (cons (cons x (car acc))
                     (cdr acc))
               (cons (list x) acc)))
@@ -133,7 +131,7 @@ are pre-sorted by filename during translation."
   (uniq-list (sort-list nav-table
                         (lexicographic-comparator-from-keys > cadar caddar))
              ;; sort backwards so that uniq-list doesn't need to call reverse!
-             #:key cdar #:reverse? #t))
+             (comparator-from-key cdar equal?) #:reverse? #t))
 
 (define (distribute-index-and-format! i seg)
   (map (lambda (elt)
@@ -176,10 +174,11 @@ file, then clear @code{score-nav-tables}."
          ;; expressions within the same Bottom context. It does mean that two
          ;; separate music expressions that happen one after the other will be
          ;; treated as a single expression for navigation purposes.
-         (sequential-segs (append-map (compose reverse
-                                               (cut split-sequential-segments <>
-                                                    #:key cadr))
-                                      sorted-by-location))
+         (sequential-segs (append-map
+                           (compose reverse
+                                    (cute split-sequential-segments <>
+                                          (comparator-from-key cadr <)))
+                           sorted-by-location))
          ;; Imperatively insert segment indices into the elements and process
          ;; moments into export format, so this data is available for collation
          (by-moment (index-map distribute-index-and-format! sequential-segs))
@@ -226,7 +225,7 @@ entry is of the form:
       (let* ((fl-ln-ch-cl (ly:input-file-line-char-column location))
              (now (ly:context-current-moment ctx))
              (export-props (ly:context-property ctx 'navigationExportProperties))
-             (extra-data (filter-map (cut ly:context-property ctx <> #f)
+             (extra-data (filter-map (cute ly:context-property ctx <> #f)
                                      export-props))
              (ev-length (ly:event-property event 'length ZERO-MOMENT))
              ;; rhythmic-events within grace music have non-grace length, so if
