@@ -121,7 +121,7 @@ exported navigation data.")
 (define-public collated-nav-tables (make-parameter (list)))
 (define-public book-score-count (make-parameter 0))
 
-(define-public (sort-by-location nav-table)
+(define-public (sort-and-deduplicate nav-table)
   "If @var{nav-table} is in the format of @code{Score.navigationTable}, sort it
 by @var{line} and @var{character}, then remove duplicates by comparing the input
 locations of adjacent elements. Filenames are ignored, because navigation tables
@@ -165,7 +165,7 @@ file, then clear @code{score-nav-tables}."
   (ly:progress "\nCollating navigation data...")
   ;; Initially discard the filename alist keys, as filenames are in each element
   ;; Sort within each filename by line and char, then remove duplicates.
-  (let* ((sorted-by-location (map (compose sort-by-location cdr) nav-table))
+  (let* ((unique-by-location (map (compose sort-and-deduplicate cdr) nav-table))
          ;; Split the sorted list wherever adjacent elements are not sequential
          ;; rhythmically. Doing it this way automatically handles music shared
          ;; between staves, context changes, quotes/cues, and simultaneous music
@@ -176,7 +176,7 @@ file, then clear @code{score-nav-tables}."
                            (compose reverse
                                     (cute split-sequential-segments <>
                                           (comparator-from-key cadr <)))
-                           sorted-by-location))
+                           unique-by-location))
          ;; Imperatively insert segment indices into the elements and process
          ;; moments into export format, so this data is available for collation
          (by-moment (index-map distribute-index-and-format! sequential-segs))
@@ -195,7 +195,7 @@ file, then clear @code{score-nav-tables}."
                                                    (((fname . floc) . data)
                                                     (cons* floc score-id data)))
                                                  ftable)))
-                                    sorted-by-location)))
+                                    unique-by-location)))
     (score-nav-tables (acons score-id by-moment (score-nav-tables)))
     (collated-nav-tables (merge-sorted-tables
                           (collated-nav-tables) by-file-with-indices
@@ -221,6 +221,7 @@ entry is of the form:
   (let ((location (ly:event-property event 'origin #f)))
     (when location ; ignore synthetic events
       (let* ((fl-ln-ch-cl (ly:input-file-line-char-column location))
+             (filename (car fl-ln-ch-cl))
              (now (ly:context-current-moment ctx))
              (export-props (ly:context-property ctx 'navigationExportProperties))
              (extra-data (filter-map (cute ly:context-property ctx <> #f)
@@ -234,11 +235,11 @@ entry is of the form:
                       (- now (ly:make-moment 0 (- (ly:moment-main ev-length))))))
              (score-ctx (ly:context-find ctx 'Score))
              (nav-table (ly:context-property score-ctx 'navigationTable))
-             (file-table (assoc-get (car fl-ln-ch-cl) nav-table '())))
+             (file-table (assoc-get filename nav-table '())))
         ;; alist assignment is a convenient way to pre-sort events by file,
         ;; preserving score order when cycling through music expressions
         (ly:context-set-property! score-ctx 'navigationTable
-                                  (assoc-set! nav-table (car fl-ln-ch-cl)
+                                  (assoc-set! nav-table filename
                                               (cons (cons* fl-ln-ch-cl
                                                            now end extra-data)
                                                     file-table)))))))
@@ -291,7 +292,7 @@ this data into a two tables: one collated by filename, the other split into
 discrete sequential music expressions. Add the organized data to the book-level
 parameters @code{collated-nav-tables} and @code{score-nav-tables} respectively.
 If this @code{Score} is the last one in its top-level book, write the collected
-data from both paramaters to a file named @file{.nav/@code{bookname}.l}, located
+data from both paramaters to a file named @file{.nav/@var{bookname}.l}, located
 relative to the file being compiled.")))
 
 (define-public (count-book-scores book)
