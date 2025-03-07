@@ -85,18 +85,15 @@ initial ordering of @var{lst}."
               (cons (list x) acc)))
         '() lst))
 
-(define*-public (apply-export-type-conversions arg #:optional (paper #f))
-  "Recursively apply type conversions to @var{arg} as defined in @var{paper} or
-@code{$defaultpaper} variable @code{export-type-conversions}."
+(define*-public (apply-export-type-conversions arg)
+  "Recursively apply type conversions to @var{arg} as defined in
+global paramater @var{current-export-type-conversions}."
   (cond
    ((list? arg)
     (map apply-export-type-conversions arg))
-   ((and=> (assoc arg (ly:output-def-lookup
-                       (or paper (ly:parser-lookup '$defaultpaper))
-                       'export-type-conversions)
-                  (lambda (a b) (b a)))
+   ((and=> (assoc arg (current-export-type-conversions) (lambda (a b) (b a)))
            cdr)
-    => (compose apply-export-type-conversions (cut <> arg)))
+    => (compose apply-export-type-conversions (cute <> arg)))
    (else arg)))
 
 (define*-public (merge-sorted-tables alist1 alist2 #:optional (comparator <))
@@ -119,6 +116,7 @@ for every @code{rhythmic-event} in @code{Score} up to the current timestep.")
  'navigationExportProperties symbol-list? "Context properties to include in
 exported navigation data.")
 
+(define-public current-export-type-conversions (make-parameter '()))
 (define-public score-nav-tables (make-parameter (list)))
 (define-public collated-nav-tables (make-parameter (list)))
 (define-public book-score-count (make-parameter 0))
@@ -304,7 +302,9 @@ relative to the file being compiled.")))
 (define (default-toplevel-book-handler book)
   (parameterize ((score-nav-tables (list))
                  (collated-nav-tables (list))
-                 (book-score-count (count-book-scores book)))
+                 (book-score-count (count-book-scores book))
+                 (current-export-type-conversions
+                  (paper-variable book 'export-type-conversions)))
     (toplevel-book-handler book)
     ;; If there's still un-exported nav-data, export it now
     (when (pair? (score-nav-tables))
