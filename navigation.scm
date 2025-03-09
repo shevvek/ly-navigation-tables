@@ -45,13 +45,13 @@ for the first non-@code{equal?} set of values selected by applying each of
 For example, @code{(lexicographic-comparator-from-keys < car cadr caddr #:= =)}
 would yield a function appropriate for comparing LilyPond version numbers in
 list-form (e.g. @code{(2 25 20)})."
-  (and=> (any (lambda (s) ; relies on `any' checking elements in order
-                (let ((vals (map s args)))
-                  (and (not (apply = vals))
-                       vals)))
-              selectors)
-         (lambda (vals)
-           (apply test vals))))
+  (let lp ((vals (map (car selectors) args))
+           (selectors (cdr selectors)))
+    (if (and (pair? selectors)
+             (apply = vals))
+        (lp (map (car selectors) args)
+            (cdr selectors))
+        (apply test vals))))
 
 (define-public (write-file-to-subdir data dir name ext)
   "Write @var{data} to @file{@var{dir}/@var{name}.@var{ext}} relative to the
