@@ -117,88 +117,42 @@ for every @code{rhythmic-event} in @code{Score} up to the current timestep.")
 exported navigation data.")
 
 (define-public current-export-type-conversions (make-parameter '()))
-(define-public score-nav-tables (make-parameter (list)))
+(define-public score-id-alist (make-parameter (list)))
 (define-public collated-nav-tables (make-parameter (list)))
 (define-public book-score-count (make-parameter 0))
 
-(define-public (sort-and-deduplicate nav-table)
-  "If @var{nav-table} is in the format of @code{Score.navigationTable}, sort it
-by @var{line} and @var{character}, then remove duplicates by comparing the input
-locations of adjacent elements. Filenames are ignored, because navigation tables
-are pre-sorted by filename during translation."
-  (uniq-list (sort-list nav-table
-                        (lexicographic-comparator-from-keys > cadar caddar))
-             ;; sort backwards so that uniq-list doesn't need to call reverse!
-             (comparator-from-key cdar equal?) #:reverse? #t))
-
-(define (distribute-index-and-format! i seg)
-  (map (lambda (elt)
-         ;; The reason for set-cdr! is to smuggle indices and formatted moments
-         ;; from the segmented list to the collated list via shared cons tails
-         ;; of the elements. Otherwise this would require iterating over the
-         ;; whole list to reverse lookup every element.
-         (set-cdr! elt (cons* i (apply-export-type-conversions (cdr elt))))
-         (match elt ((loc j mom end . data)
-                     `((,mom . ,end) ,loc ,data))))
-       seg))
-
-(define-public (export-nav-data)
-  "Write the navigation data for the current book, accumulated in
-@code{score-nav-tables} and @code{collated-nav-tables}, to
-@file{.nav/@var{bookname}.l}, relative to the input file location."
-  (ly:progress "\nExporting navigation data for book `~a'..."
-               current-outfile-name)
-  (write-file-to-subdir `((by-score . ,(score-nav-tables))
-                          (by-input-file . ,(collated-nav-tables)))
-                        ;; .l because the data is generic Scheme/LISP format
-                        ;; Use a fixed subdirectory relative to the input file
-                        ;; (not the output directory) so editors can find it.
-                        ".nav" current-outfile-name ".l"))
-
 (define-public (finalize-nav-data! nav-table)
-  "Process data collected in a @code{Score}'s @code{navigationTable}. Sort,
-remove duplicate events, split into sequential music expressions, collate by
-file, format for export. The processed data is stored in the book-level
-parameters @code{score-nav-tables} and @code{collated-nav-tables}. If data has
-been processed for all scores in the book, write both parameters to the output
-file, then clear @code{score-nav-tables}."
+  "Process data collected in a @code{Score}'s @code{navigationTable}. Sort by
+input location, tag with score-id, remove duplicate events, and format for
+export. The processed data is stored in the book-level parameters
+@code{score-id-alist} and @code{collated-nav-tables}. If data has been
+processed for all scores in the book, write both parameters to the output file,
+then clear @code{score-id-alist}."
   (ly:progress "\nCollating navigation data...")
-  ;; Initially discard the filename alist keys, as filenames are in each element
-  ;; Sort within each filename by line and char, then remove duplicates.
-  (let* ((unique-by-location (map (compose sort-and-deduplicate cdr) nav-table))
-         ;; Split the sorted list wherever adjacent elements are not sequential
-         ;; rhythmically. Doing it this way automatically handles music shared
-         ;; between staves, context changes, quotes/cues, and simultaneous music
-         ;; expressions within the same Bottom context. It does mean that two
-         ;; separate music expressions that happen one after the other will be
-         ;; treated as a single expression for navigation purposes.
-         (sequential-segs (append-map
-                           (compose reverse
-                                    (cute split-sequential-segments <>
-                                          (comparator-from-key cadr <)))
-                           unique-by-location))
-         ;; Imperatively insert segment indices into the elements and process
-         ;; moments into export format, so this data is available for collation
-         (by-moment (index-map distribute-index-and-format! sequential-segs))
-         (score-index (length (score-nav-tables)))
+  (let* ((score-index (length (score-id-alist)))
          ;; score-ids are sufficiently unique for editors to use a single global
          ;; lookup table across all projects
          (score-id (string->symbol
                     (format #f "~a-~d-~d" current-outfile-name score-index
                             ;; disambiguate books with same name
                             (hash input-file-name (expt 1024 3)))))
-         ;; Format the elements of the filename collated version of the data
-         ;; Restore the filename alist key that was stripped earlier
-         (by-file-with-indices (map (lambda (ftable)
-                                      (cons (caaar ftable) ; filename of ftable
-                                            (map (match-lambda
-                                                   (((fname . floc) . data)
-                                                    (cons* floc score-id data)))
-                                                 ftable)))
-                                    unique-by-location)))
-    (score-nav-tables (acons score-id by-moment (score-nav-tables)))
+         (file-list (map car nav-table))
+         (final-tables
+          (map (compose
+                (cute map! (match-lambda
+                             (((filename . location) . data)
+                              (cons* location score-id
+                                     (apply-export-type-conversions data)))) <>)
+                (cute uniq-list <> (comparator-from-key cdar equal?)
+                      #:reverse? #t)
+                ;; sort backwards so uniq-list doesn't need to call reverse!
+                (cute sort-list! <>
+                      (lexicographic-comparator-from-keys > cadar caddar))
+                cdr)
+               nav-table)))
+    (score-id-alist (acons score-id file-list (score-id-alist)))
     (collated-nav-tables (merge-sorted-tables
-                          (collated-nav-tables) by-file-with-indices
+                          (collated-nav-tables) (map cons file-list final-tables)
                           (lexicographic-comparator-from-keys < caar cadar)))
     (when (= score-index (1- (book-score-count)))
       ;; Write to file as soon as translation is done for the last score in the
@@ -207,9 +161,22 @@ file, then clear @code{score-nav-tables}."
       ;; If some score in the book didn't generate nav data, this clause never
       ;; runs. We reset the value of one of the parameters here as a flag to
       ;; tell toplevel-book-handler that nav data was successfully exported at
-      ;; the end of translation. If score-nav-tables still has data after
+      ;; the end of translation. If score-id-alist still has data after
       ;; typesetting, toplevel-book-handler knows to run export-nav-data.
-      (score-nav-tables #f))))
+      (score-id-alist #f))))
+
+(define-public (export-nav-data)
+  "Write the navigation data for the current book, accumulated in
+@code{score-id-alist} and @code{collated-nav-tables}, to
+@file{.nav/@var{bookname}.l}, relative to the input file location."
+  (ly:progress "\nExporting navigation data for book `~a'..."
+               current-outfile-name)
+  (write-file-to-subdir `((by-score . ,(score-id-alist))
+                          (by-input-file . ,(collated-nav-tables)))
+                        ;; .l because the data is generic Scheme/LISP format
+                        ;; Use a fixed subdirectory relative to the input file
+                        ;; (not the output directory) so editors can find it.
+                        ".nav" current-outfile-name ".l"))
 
 (define-public ((record-origins-listener ctx) event)
   "Make a listener callback for context @var{ctx} that gathers each event's
@@ -290,7 +257,7 @@ Collect the start moment, end moment, input location, and value of each property
 in @code{navigationExportProperties} for every @code{rhythmic-event}. Organize
 this data into a two tables: one collated by filename, the other split into
 discrete sequential music expressions. Add the organized data to the book-level
-parameters @code{collated-nav-tables} and @code{score-nav-tables} respectively.
+parameters @code{collated-nav-tables} and @code{score-id-alist} respectively.
 If this @code{Score} is the last one in its top-level book, write the collected
 data from both paramaters to a file named @file{.nav/@var{bookname}.l}, located
 relative to the file being compiled.")))
@@ -301,12 +268,12 @@ relative to the file being compiled.")))
          (map count-book-scores (ly:book-book-parts book))))
 
 (define (default-toplevel-book-handler book)
-  (parameterize ((score-nav-tables (list))
+  (parameterize ((score-id-alist (list))
                  (collated-nav-tables (list))
                  (book-score-count (count-book-scores book))
                  (current-export-type-conversions
                   (paper-variable book 'export-type-conversions)))
     (toplevel-book-handler book)
     ;; If there's still un-exported nav-data, export it now
-    (when (pair? (score-nav-tables))
+    (when (pair? (score-id-alist))
       (export-nav-data))))
