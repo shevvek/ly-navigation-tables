@@ -1,0 +1,31 @@
+.nav
+*old*
+scratch*
+
+## OS
+
+.DS_Store
+.directory
+
+## LilyPond
+
+*.pdf
+*.midi
+*.mid
+*.log
+
+## Emacs Lisp:
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# projectiles files
+.projectile
+
+# directory configuration
+.dir-locals-2.el
