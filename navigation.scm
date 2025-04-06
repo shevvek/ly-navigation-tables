@@ -198,8 +198,9 @@ entry is of the form:
              ;; now has a grace component, convert ev-length to a pure grace
              ;; moment first, then calculate end-moment
              (end (if (= 0 (ly:moment-grace now))
-                      (+ now ev-length)
-                      (- now (ly:make-moment 0 (- (ly:moment-main ev-length))))))
+                      (ly:moment-add now ev-length)
+                      (ly:moment-sub
+                       now (ly:make-moment 0 (- (ly:moment-main ev-length))))))
              (score-ctx (ly:context-find ctx 'Score))
              (nav-table (ly:context-property score-ctx 'navigationTable))
              (file-table (assoc-get filename nav-table '())))
