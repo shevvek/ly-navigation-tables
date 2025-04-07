@@ -21,8 +21,8 @@
 (module-set! (resolve-module '(lily)) 'uniq-list
              (lambda* (lst #:optional (= equal?) #:key (reverse? #f))
                "Remove adjacent duplicates from @var{lst}. For sorted lists,
-faster than @code{delete-duplicates}. Comparisons are performed using
-@code{equal?} or optionally @var{=}. With @var{reverse?} non-@code{#f}, return
+faster than @code{delete-duplicates}.  Comparisons are performed using
+@code{equal?} or optionally @var{=}.  With @var{reverse?} non-@code{#f}, return
 the result in reverse order (slightly more efficient)."
                (let ((result (fold (lambda (x acc)
                                      (if (null? acc)
@@ -39,7 +39,7 @@ the result in reverse order (slightly more efficient)."
                                                      . selectors) . args)
   "Make a general lexicographic comparator that returns the result of @var{test}
 for the first non-@code{equal?} set of values selected by applying each of
-@var{selectors} in turn across the comparator's arguments. With
+@var{selectors} in turn across the comparator's arguments.  With
 @code{#:=}@tie{}@var{=}, use the provided @var{=} proc instead of @code{equal?}.
 
 For example, @code{(lexicographic-comparator-from-keys < car cadr caddr #:= =)}
@@ -66,13 +66,15 @@ current input file."
     (close-port-rename tmp fname)))
 
 (define-public (selective-map-contexts proc ctx)
-  "Apply @var{proc} to context @var{ctx}.  If @var{proc} returns @code{#f},
-recurse over the children of @var{ctx}. Returns the tree of contexts where
+  "Apply @var{proc} to context @var{ctx}.   If @var{proc} returns @code{#f},
+recurse over the children of @var{ctx}.  Returns the tree of contexts where
 @var{proc} was successfully applied."
   (or (proc ctx)
       (map (cute selective-map-contexts proc <>)
            (ly:context-children ctx))))
 
+;; This function is no longer used, but it is left as a utility for editors that
+;; may find it more convenient to split sequential segments on the Scheme side.
 (define*-public (split-sequential-segments lst #:optional (comparator <))
   "Split @var{lst} into monotonic segments under @var{comparator}, reversing the
 initial ordering of @var{lst}."
@@ -98,7 +100,7 @@ global paramater @var{current-export-type-conversions}."
 
 (define*-public (merge-sorted-tables alist1 alist2 #:optional (comparator <))
   "Combine two alists @var{alist1} and @var{alist2}, where the values are lists
-sorted under @var{comparator}. Merge the value lists for any keys common to both
+sorted under @var{comparator}.  Merge the value lists for any keys common to both
 alists. Order of keys is not preserved."
   (if (null? alist1)
       alist2
@@ -122,12 +124,12 @@ exported navigation data.")
 (define-public book-score-count (make-parameter 0))
 
 (define-public (finalize-nav-data! nav-table)
-  "Process data collected in a @code{Score}'s @code{navigationTable}. Sort by
-input location, tag with score-id, remove duplicate events, and format for
-export. The processed data is stored in the book-level parameters
-@code{score-id-alist} and @code{collated-nav-tables}. If data has been
-processed for all scores in the book, write both parameters to the output file,
-then clear @code{score-id-alist}."
+  "Process data collected in @code{Score.navigationTable}.  Sort by input
+location, tag with score-id, remove duplicate events, and format for export.
+The processed data is stored in the book-level parameters @code{score-id-alist}
+and @code{collated-nav-tables}.  If data has been processed for all scores in
+the book, write both parameters to the output file, then clear
+@code{score-id-alist}."
   (ly:progress "\nCollating navigation data...")
   (let* ((score-index (length (score-id-alist)))
          ;; score-ids are sufficiently unique for editors to use a single global
@@ -180,10 +182,9 @@ then clear @code{score-id-alist}."
 
 (define-public ((record-origins-listener ctx) event)
   "Make a listener callback for context @var{ctx} that gathers each event's
-input location. start and end moment, and values of each property in
-@code{navigationExportProperties}. Collect the data under alist entries per
-input filename in @code{Score}@tie{}level property @code{navigationTable}. Each
-entry is of the form:
+input location.  start and end moment, and values of each property in
+@code{navigationExportProperties}.  Collect the data under alist entries per
+input filename in @code{Score.navigationTable}.  Each entry is of the form:
 @code{((filename line char col) . (beg-moment end-moment . export-props))}"
   (let ((location (ly:event-property event 'origin #f)))
     (when location ; ignore synthetic events
@@ -255,13 +256,13 @@ entry is of the form:
    (properties-written . (navigationTable))
    (description . "\
 Collect the start moment, end moment, input location, and value of each property
-in @code{navigationExportProperties} for every @code{rhythmic-event}. Organize
-this data into a two tables: one collated by filename, the other split into
-discrete sequential music expressions. Add the organized data to the book-level
-parameters @code{collated-nav-tables} and @code{score-id-alist} respectively.
-If this @code{Score} is the last one in its top-level book, write the collected
-data from both paramaters to a file named @file{.nav/@var{bookname}.l}, located
-relative to the file being compiled.")))
+in @code{navigationExportProperties} for every @code{rhythmic-event}.  Sort by
+input location, tag with score-id, remove duplicate events, and format types for
+export.  Merge this data into book-level parameter @code{collated-nav-tables}.
+Update book parameter @code{score-id-alist} with a list of input files for each
+score-id.  If this @code{Score} is the last one in its top-level book, write the
+collected data from both paramaters to a file named
+@file{.nav/@var{bookname}.l}, located relative to the file being compiled.")))
 
 (define-public (count-book-scores book)
   "Recursively count the number of scores in @var{book}."
